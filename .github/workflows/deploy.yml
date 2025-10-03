@@ -1,46 +1,55 @@
-name: Build and Deploy Next.js via HTTPS
+name: Deploy to GCP Nodes
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'app/**'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code via HTTPS
+      - name: Checkout Repository
         uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.7.0
         with:
-          token: ${{ secrets.GH_PAT }}
+          ssh-private-key: ${{ secrets.GCLOUD_SSH_KEY }}
 
-      - name: Build Docker Image
+      - name: Deploy to HA Node 1
         run: |
-          cd /github/workspace
-          docker build -t gscdockers/my-project:1.0 .
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE1 }} "
+            cd /var/www/my-project-web/app && \
+            sudo docker build -t gscdockers/nfs-web:latest . && \
+            sudo docker rm -f nfs-web || true && \
+            sudo docker run -d -p 8080:8080 \
+              -v /var/www/my-project-web/uploads:/app/uploads \
+              -v ~/nfs-logger-key.json:/app/key.json \
+              -e GOOGLE_APPLICATION_CREDENTIALS=/app/key.json \
+              --name nfs-web gscdockers/nfs-web:latest
 
-      - name: Push Docker Image to GCP Registry
-        run: |
-          echo ${{ secrets.GCP_SA_KEY }} | gcloud auth activate-service-account --key-file=-
-          gcloud auth configure-docker
-          docker tag gscdockers/my-project:1.0 gcr.io/YOUR_PROJECT_ID/my-project:1.0
-          docker push gcr.io/YOUR_PROJECT_ID/my-project:1.0
-
-      - name: Deploy to Node 1 (GCP VM)
-        run: |
-          gcloud compute ssh gustavo@ha-node-1 --command "
-          docker pull gcr.io/YOUR_PROJECT_ID/my-project:1.0 &&
-          docker rm -f my-project || true &&
-          docker run -d -p 3000:3000 --name my-project gcr.io/YOUR_PROJECT_ID/my-project:1.0
+            cd /var/www/my-project && \
+            sudo docker build -t gscdockers/my-project:latest . && \
+            sudo docker rm -f my-project || true && \
+            sudo docker run -d -p 3000:3000 --name my-project gscdockers/my-project:latest
           "
 
-      - name: Deploy to Node 2 (GCP VM)
+      - name: Deploy to HA Node 2
         run: |
-          gcloud compute ssh gustavo@ha-node-2 --command "
-          docker pull gcr.io/YOUR_PROJECT_ID/my-project:1.0 &&
-          docker rm -f my-project || true &&
-          docker run -d -p 3000:3000 --name my-project gcr.io/YOUR_PROJECT_ID/my-project:1.0
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE2 }} "
+            cd /var/www/my-project-web/app && \
+            sudo docker build -t gscdockers/nfs-web:latest . && \
+            sudo docker rm -f nfs-web || true && \
+            sudo docker run -d -p 8080:8080 \
+              -v /var/www/my-project-web/uploads:/app/uploads \
+              -v ~/nfs-logger-key.json:/app/key.json \
+              -e GOOGLE_APPLICATION_CREDENTIALS=/app/key.json \
+              --name nfs-web gscdockers/nfs-web:latest
+
+            cd /var/www/my-project && \
+            sudo docker build -t gscdockers/my-project:latest . && \
+            sudo docker rm -f my-project || true && \
+            sudo docker run -d -p 3000:3000 --name my-project gscdockers/my-project:latest
           "
