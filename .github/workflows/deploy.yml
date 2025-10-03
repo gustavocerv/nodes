@@ -10,41 +10,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup SSH agent
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.GCLOUD_SSH_KEY }}
 
-      # 3️⃣ Add HA nodes to known_hosts
-      - name: Add HA nodes to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.GCLOUD_HOST_NODE1 }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.GCLOUD_HOST_NODE2 }} >> ~/.ssh/known_hosts
-
-      # 4️⃣ Set up GCP credentials locally
-      - name: Set up GCP credentials
-        run: echo "${{ secrets.GCP_SA_KEY }}" > /tmp/key.json
-
-      # 5️⃣ Copy GCP key to HA Node 1
-      - name: Copy GCP key to HA Node 1
-        run: |
-          scp /tmp/key.json ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE1 }}:~/nfs-logger-key.json
-
-      # 6️⃣ Copy GCP key to HA Node 2
-      - name: Copy GCP key to HA Node 2
-        run: |
-          scp /tmp/key.json ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE2 }}:~/nfs-logger-key.json
-
-      # 7️⃣ Deploy containers on HA Node 1
       - name: Deploy to HA Node 1
         run: |
-          ssh ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE1 }} "
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE1 }} "
             cd /var/www/my-project-web/app && \
             sudo docker build -t gscdockers/nfs-web:latest . && \
             sudo docker rm -f nfs-web || true && \
@@ -60,10 +36,9 @@ jobs:
             sudo docker run -d -p 3000:3000 --name my-project gscdockers/my-project:latest
           "
 
-      # 8️⃣ Deploy containers on HA Node 2
       - name: Deploy to HA Node 2
         run: |
-          ssh ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE2 }} "
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCLOUD_USER }}@${{ secrets.GCLOUD_HOST_NODE2 }} "
             cd /var/www/my-project-web/app && \
             sudo docker build -t gscdockers/nfs-web:latest . && \
             sudo docker rm -f nfs-web || true && \
