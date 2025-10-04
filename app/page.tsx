@@ -8,7 +8,7 @@ export default function Home() {
         <div className="flex flex-col gap-4">
           {/* GitHub Actions button */}
           <button className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Trigger GitHub
+            Trigger GitHub :)
           </button>
 
           {/* Old NFS button */}
